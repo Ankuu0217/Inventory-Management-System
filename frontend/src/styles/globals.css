@@ -1,0 +1,79 @@
+/* Inter, weights 400/500/600 */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@import '@fontsource/geist-mono/400.css';
+@import '@fontsource/geist-mono/500.css';
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Satoshi is intentionally not loaded from Fontshare (one fewer external
+ * dependency/failure point). font-satoshi falls back to Inter 500 in the
+ * stack below -- pair it with `tracking-[-0.02em]` for the same display
+ * effect, per the design spec's own documented substitution.
+ */
+
+@theme {
+  --color-canvas-white: #ffffff;
+  --color-paper-mist: #f5f5f5;
+  --color-ash: #e5e5e5;
+  --color-smoke: #d4d4d4;
+  --color-pebble: #c8c8c8;
+  --color-midnight-ink: #0a0a0a;
+  --color-charcoal: #171717;
+  --color-graphite: #262626;
+  --color-slate: #404040;
+  --color-steel: #525252;
+  --color-fog: #737373;
+  --color-silver: #a3a3a3;
+  --color-electric-blue: #2563eb;
+  --color-deep-sapphire: #1e40af;
+  --color-soft-mint: #dcfce7;
+  --color-vivid-green: #16a34a;
+  --color-tangerine: #ea580c;
+  --color-lavender: #7c3aed;
+  --color-sidebar-active: #dbeaff;
+
+  --font-satoshi: 'Satoshi', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-inter: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-geist-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+
+  --spacing-4: 4px;
+  --spacing-8: 8px;
+  --spacing-12: 12px;
+  --spacing-16: 16px;
+  --spacing-20: 20px;
+  --spacing-24: 24px;
+  --spacing-32: 32px;
+  --spacing-48: 48px;
+  --spacing-64: 64px;
+
+  --radius-inputs: 6px;
+  --radius-buttons: 8px;
+  --radius-cards: 12px;
+  --radius-largecards: 16px;
+  --radius-full: 9999px;
+
+  --shadow-subtle: rgba(0, 0, 0, 0.05) 0px 1px 2px 0px;
+  --shadow-ring: rgba(0, 0, 0, 0.1) 0px 0px 0px 4px;
+
+  /* Page-title scale (24-30px/600), per the typography scale in the spec */
+  --text-heading-sm: 1.5rem;
+  --text-heading-sm--line-height: 2rem;
+  --text-heading: 1.875rem;
+  --text-heading--line-height: 2.25rem;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-ash);
+  }
+
+  body {
+    background-color: var(--color-canvas-white);
+    color: var(--color-charcoal);
+    font-family: var(--font-inter);
+    -webkit-font-smoothing: antialiased;
+  }
+}
