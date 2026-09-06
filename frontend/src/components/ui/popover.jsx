@@ -1,0 +1,40 @@
+import * as React from 'react';
+import PropTypes from 'prop-types';
+import * as PopoverPrimitive from '@radix-ui/react-popover';
+import { cn } from '@/lib/utils';
+
+const Popover = PopoverPrimitive.Root;
+const PopoverTrigger = PopoverPrimitive.Trigger;
+const PopoverAnchor = PopoverPrimitive.Anchor;
+
+/**
+ * @param {Object} props
+ * @param {string} [props.className]
+ * @param {'start'|'center'|'end'} [props.align]
+ * @param {number} [props.sideOffset]
+ */
+const PopoverContent = React.forwardRef(
+  ({ className, align = 'center', sideOffset = 8, ...props }, ref) => (
+    <PopoverPrimitive.Portal>
+      <PopoverPrimitive.Content
+        ref={ref}
+        align={align}
+        sideOffset={sideOffset}
+        className={cn(
+          'z-50 w-72 rounded-cards border border-ash bg-canvas-white p-16 text-charcoal shadow-ring outline-none',
+          'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+          className,
+        )}
+        {...props}
+      />
+    </PopoverPrimitive.Portal>
+  ),
+);
+PopoverContent.displayName = PopoverPrimitive.Content.displayName;
+PopoverContent.propTypes = {
+  className: PropTypes.string,
+  align: PropTypes.oneOf(['start', 'center', 'end']),
+  sideOffset: PropTypes.number,
+};
+
+export { Popover, PopoverTrigger, PopoverAnchor, PopoverContent };
