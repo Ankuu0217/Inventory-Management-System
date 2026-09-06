@@ -19,11 +19,12 @@ import { getErrorMessage } from '@/lib/apiError';
  * confirmation itself, not in a red button -- the palette has no red.
  *
  * @param {Object} props
- * @param {import('@/types/product').Product | null} props.product
+ * @param {import('@/types/product').Product | null} [props.product]
  * @param {boolean} props.open
  * @param {(open: boolean) => void} props.onOpenChange
+ * @param {() => void} [props.onDeleted] fired only after a successful delete
  */
-export function DeleteConfirmDialog({ product = null, open, onOpenChange }) {
+export function DeleteConfirmDialog({ product = null, open, onOpenChange, onDeleted }) {
   const [deleteProduct] = useDeleteProductMutation();
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -32,8 +33,9 @@ export function DeleteConfirmDialog({ product = null, open, onOpenChange }) {
     setIsDeleting(true);
     try {
       await deleteProduct(product.id).unwrap();
-      toast.success('Product deleted');
+      toast.success(`Deleted ${product.name}`);
       onOpenChange(false);
+      onDeleted?.();
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {
@@ -43,13 +45,14 @@ export function DeleteConfirmDialog({ product = null, open, onOpenChange }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-[400px]">
         <DialogHeader>
-          <DialogTitle>Delete product?</DialogTitle>
+          <DialogTitle>
+            Delete <span className="font-semibold">{product?.name}</span>?
+          </DialogTitle>
           <DialogDescription>
-            This will permanently delete{' '}
-            <span className="font-medium text-charcoal">{product?.name}</span>. This action cannot
-            be undone.
+            This removes the product and its stock level from your catalogue. It can&apos;t be
+            undone.
           </DialogDescription>
         </DialogHeader>
 
@@ -60,11 +63,11 @@ export function DeleteConfirmDialog({ product = null, open, onOpenChange }) {
           <Button variant="secondary" onClick={handleDelete} disabled={isDeleting}>
             {isDeleting ? (
               <>
-                <Loader2 className="h-16 w-16 animate-spin" />
-                Deleting...
+                <Loader2 className="animate-spin" />
+                Deleting…
               </>
             ) : (
-              'Delete'
+              'Delete product'
             )}
           </Button>
         </DialogFooter>
@@ -77,4 +80,5 @@ DeleteConfirmDialog.propTypes = {
   product: PropTypes.shape({ id: PropTypes.string, name: PropTypes.string }),
   open: PropTypes.bool.isRequired,
   onOpenChange: PropTypes.func.isRequired,
+  onDeleted: PropTypes.func,
 };

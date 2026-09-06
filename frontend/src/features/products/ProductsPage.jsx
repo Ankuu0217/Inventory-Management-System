@@ -1,29 +1,31 @@
-import { useEffect, useMemo, useState } from 'react';
-import PropTypes from 'prop-types';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Package, Plus, SearchX } from 'lucide-react';
+import { Plus, RotateCw } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Card } from '@/components/ui/card';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { ProductToolbar } from '@/features/products/ProductToolbar';
+import { ActiveFilterChips } from '@/features/products/ActiveFilterChips';
 import { ProductTable } from '@/features/products/ProductTable';
+import { ProductPagination } from '@/features/products/ProductPagination';
+import {
+  NoFilterMatches,
+  NoProductsYet,
+  ProductTableSkeleton,
+} from '@/features/products/ProductEmptyStates';
 import { ProductFormDialog } from '@/features/products/ProductFormDialog';
 import { ProductDetailSheet } from '@/features/products/ProductDetailSheet';
 import { DeleteConfirmDialog } from '@/features/products/DeleteConfirmDialog';
 import { useGetProductsQuery } from '@/api/productsApi';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS, SEARCH_DEBOUNCE_MS } from '@/lib/constants';
+import { DEFAULT_PAGE_SIZE, SEARCH_DEBOUNCE_MS } from '@/lib/constants';
 import { getErrorMessage } from '@/lib/apiError';
 
-/** Container: owns URL-backed filter/pagination state and all data fetching. */
+const DEFAULT_SORT = 'createdAt';
+const DEFAULT_ORDER = 'desc';
+
+/** Container: owns URL-backed filter/sort/pagination state and all fetching. */
 export function ProductsPage() {
   const navigate = useNavigate();
   const { id: detailId } = useParams();
@@ -34,6 +36,8 @@ export function ProductsPage() {
   const status = searchParams.get('status') ?? 'all';
   const page = Number(searchParams.get('page') ?? '1');
   const limit = Number(searchParams.get('limit') ?? String(DEFAULT_PAGE_SIZE));
+  const sortBy = searchParams.get('sortBy') ?? DEFAULT_SORT;
+  const order = searchParams.get('order') === 'asc' ? 'asc' : DEFAULT_ORDER;
 
   const [searchInput, setSearchInput] = useState(searchFromUrl);
   const debouncedSearch = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS);
@@ -47,22 +51,50 @@ export function ProductsPage() {
    * @param {Record<string, string|null>} updates
    * @param {boolean} [resetPage] send the user back to page 1 (any filter change)
    */
-  function updateParams(updates, resetPage = true) {
-    const next = new URLSearchParams(searchParams);
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value === null || value === '') next.delete(key);
-      else next.set(key, value);
-    });
-    if (resetPage) next.delete('page');
-    setSearchParams(next);
-  }
+  const updateParams = useCallback(
+    (updates, resetPage = true) => {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        Object.entries(updates).forEach(([key, value]) => {
+          if (value === null || value === '') next.delete(key);
+          else next.set(key, value);
+        });
+        if (resetPage) next.delete('page');
+        return next;
+      });
+    },
+    [setSearchParams],
+  );
 
   useEffect(() => {
-    if (debouncedSearch !== searchFromUrl) {
-      updateParams({ search: debouncedSearch || null });
+    // Only sync once the debounce has caught up with what's actually in the
+    // box. Without this guard, clearing the filters programmatically races the
+    // in-flight timer, which then writes the stale term back into the URL.
+    if (debouncedSearch !== searchInput) return;
+    if (debouncedSearch === searchFromUrl) return;
+    updateParams({ search: debouncedSearch || null });
+  }, [debouncedSearch, searchInput, searchFromUrl, updateParams]);
+
+  const clearAllFilters = useCallback(() => {
+    setSearchInput('');
+    updateParams({ search: null, category: null, status: null });
+  }, [updateParams]);
+
+  const hasActiveFilters = Boolean(searchFromUrl || category || status !== 'all');
+
+  // Escape clears the filters -- but only when nothing is layered on top of the
+  // page, since Radix already owns Escape for closing its own overlays.
+  useEffect(() => {
+    if (!hasActiveFilters) return undefined;
+    /** @param {KeyboardEvent} event */
+    function onKeyDown(event) {
+      if (event.key !== 'Escape') return;
+      if (document.querySelector('[role="dialog"]')) return;
+      clearAllFilters();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch]);
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [hasActiveFilters, clearAllFilters]);
 
   const listParams = useMemo(
     () => ({
@@ -71,14 +103,14 @@ export function ProductsPage() {
       status: status === 'all' ? undefined : status,
       page,
       limit,
+      sortBy,
+      order,
     }),
-    [searchFromUrl, category, status, page, limit],
+    [searchFromUrl, category, status, page, limit, sortBy, order],
   );
 
   const { data, isLoading, isFetching, isError, error, refetch } = useGetProductsQuery(listParams);
 
-  // Memoised so the empty-array fallback keeps a stable identity between
-  // renders and doesn't invalidate the memo below on every pass.
   const products = useMemo(
     () => (Array.isArray(data?.products) ? data.products : []),
     [data],
@@ -90,12 +122,18 @@ export function ProductsPage() {
     return Array.from(categories).sort((a, b) => a.localeCompare(b));
   }, [products]);
 
-  const hasActiveFilters = Boolean(searchFromUrl || category || status !== 'all');
   const isEmpty = Boolean(data) && products.length === 0;
 
-  function clearFilters() {
-    setSearchInput('');
-    setSearchParams(new URLSearchParams());
+  /** @param {'search'|'category'|'status'} key */
+  function clearFilter(key) {
+    if (key === 'search') setSearchInput('');
+    updateParams({ [key]: null });
+  }
+
+  /** Toggles direction on the active column, otherwise sorts the new one desc. */
+  function handleSort(column) {
+    const nextOrder = sortBy === column && order === 'desc' ? 'asc' : 'desc';
+    updateParams({ sortBy: column, order: nextOrder });
   }
 
   function openCreateForm() {
@@ -112,218 +150,117 @@ export function ProductsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-24">
-      <div className="flex items-center justify-between gap-16">
-        <h1 className="text-heading-sm font-semibold text-charcoal md:text-heading">Products</h1>
-        <Button variant="primary" onClick={openCreateForm}>
-          <Plus className="h-16 w-16" />
-          Add product
-        </Button>
-      </div>
-
-      <ProductToolbar
-        search={searchInput}
-        onSearchChange={setSearchInput}
-        category={category}
-        onCategoryChange={(value) => updateParams({ category: value || null })}
-        status={status}
-        onStatusChange={(value) => updateParams({ status: value === 'all' ? null : value })}
-        availableCategories={availableCategories}
-      />
-
-      {isLoading ? (
-        <div className="flex flex-col gap-8">
-          {Array.from({ length: 5 }).map((_, index) => (
-            <Skeleton key={index} className="h-48 w-full" />
-          ))}
-        </div>
-      ) : isError ? (
-        <Card className="flex flex-col items-start gap-12">
-          <p className="text-sm text-charcoal">{getErrorMessage(error)}</p>
-          <Button variant="secondary" size="sm" onClick={() => refetch()}>
-            Try again
-          </Button>
-        </Card>
-      ) : isEmpty && !hasActiveFilters ? (
-        <EmptyState
-          icon={<Package className="h-32 w-32 text-silver" />}
-          title="No products yet"
-          description="Add your first product to start tracking inventory."
+    <TooltipProvider delayDuration={300}>
+      <div className="flex flex-col gap-24">
+        <PageHeader
+          title="Products"
+          subtitle="Track stock levels across your catalogue."
           action={
             <Button variant="primary" onClick={openCreateForm}>
-              <Plus className="h-16 w-16" />
+              <Plus />
               Add product
             </Button>
           }
         />
-      ) : isEmpty ? (
-        <EmptyState
-          icon={<SearchX className="h-32 w-32 text-silver" />}
-          title="No products match these filters"
-          description="Try adjusting your search or filters."
-          action={
-            <Button variant="secondary" onClick={clearFilters}>
-              Clear filters
-            </Button>
-          }
-        />
-      ) : (
-        <>
-          <ProductTable
-            products={products}
-            listParams={listParams}
-            onRowClick={(id) =>
-              navigate({ pathname: `/products/${id}`, search: searchParams.toString() })
-            }
-            onEdit={openEditForm}
-            onDelete={setDeletingProduct}
+
+        <div className="flex flex-col gap-12">
+          <ProductToolbar
+            search={searchInput}
+            onSearchChange={setSearchInput}
+            category={category}
+            onCategoryChange={(value) => updateParams({ category: value || null })}
+            status={status}
+            onStatusChange={(value) => updateParams({ status: value === 'all' ? null : value })}
+            availableCategories={availableCategories}
+            resultCount={pagination?.total}
+            isSearching={isFetching && !isLoading}
           />
 
-          {pagination ? (
-            <PaginationBar
-              page={pagination.page}
-              totalPages={pagination.totalPages}
-              limit={limit}
-              isFetching={isFetching}
-              onPageChange={(nextPage) => updateParams({ page: String(nextPage) }, false)}
-              onLimitChange={(nextLimit) => updateParams({ limit: String(nextLimit) })}
+          <ActiveFilterChips
+            search={searchFromUrl}
+            category={category}
+            status={status}
+            onClear={clearFilter}
+            onClearAll={clearAllFilters}
+          />
+        </div>
+
+        {isLoading ? (
+          <ProductTableSkeleton />
+        ) : isError ? (
+          <Card className="flex flex-col items-start gap-12">
+            <p className="text-sm text-charcoal">{getErrorMessage(error)}</p>
+            <Button variant="secondary" size="sm" onClick={() => refetch()}>
+              <RotateCw />
+              Try again
+            </Button>
+          </Card>
+        ) : isEmpty && !hasActiveFilters ? (
+          <NoProductsYet onAddProduct={openCreateForm} />
+        ) : isEmpty ? (
+          <NoFilterMatches
+            search={searchFromUrl}
+            category={category}
+            status={status}
+            onClear={clearFilter}
+            onClearAll={clearAllFilters}
+          />
+        ) : (
+          <>
+            <ProductTable
+              products={products}
+              listParams={listParams}
+              sortBy={sortBy}
+              order={order}
+              onSort={handleSort}
+              onRowClick={(id) =>
+                navigate({ pathname: `/products/${id}`, search: searchParams.toString() })
+              }
+              onEdit={openEditForm}
+              onDelete={setDeletingProduct}
             />
-          ) : null}
-        </>
-      )}
 
-      <ProductFormDialog
-        mode={formMode}
-        product={editingProduct ?? undefined}
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        categories={availableCategories}
-      />
+            {pagination ? (
+              <ProductPagination
+                pagination={pagination}
+                isFetching={isFetching}
+                onPageChange={(nextPage) => updateParams({ page: String(nextPage) }, false)}
+                onLimitChange={(nextLimit) => updateParams({ limit: String(nextLimit) })}
+              />
+            ) : null}
+          </>
+        )}
 
-      <ProductDetailSheet
-        productId={detailId ?? null}
-        open={Boolean(detailId)}
-        onOpenChange={(next) => {
-          if (!next) navigate({ pathname: '/products', search: searchParams.toString() });
-        }}
-      />
+        <ProductFormDialog
+          mode={formMode}
+          product={editingProduct ?? undefined}
+          open={formOpen}
+          onOpenChange={setFormOpen}
+          categories={availableCategories}
+        />
 
-      <DeleteConfirmDialog
-        product={deletingProduct}
-        open={Boolean(deletingProduct)}
-        onOpenChange={(next) => {
-          if (!next) setDeletingProduct(null);
-        }}
-      />
-    </div>
-  );
-}
+        <ProductDetailSheet
+          productId={detailId ?? null}
+          open={Boolean(detailId)}
+          onOpenChange={(next) => {
+            if (!next) navigate({ pathname: '/products', search: searchParams.toString() });
+          }}
+          onEdit={openEditForm}
+          onDelete={setDeletingProduct}
+        />
 
-/**
- * @param {Object} props
- * @param {React.ReactNode} props.icon
- * @param {string} props.title
- * @param {string} props.description
- * @param {React.ReactNode} props.action
- */
-function EmptyState({ icon, title, description, action }) {
-  return (
-    <Card className="flex flex-col items-center gap-12 py-48 text-center">
-      {icon}
-      <div className="flex flex-col gap-4">
-        <p className="text-sm font-medium text-charcoal">{title}</p>
-        <p className="text-sm text-steel">{description}</p>
+        <DeleteConfirmDialog
+          product={deletingProduct}
+          open={Boolean(deletingProduct)}
+          onOpenChange={(next) => {
+            if (!next) setDeletingProduct(null);
+          }}
+          onDeleted={() => {
+            // The panel may be showing the record that was just deleted.
+            if (detailId) navigate({ pathname: '/products', search: searchParams.toString() });
+          }}
+        />
       </div>
-      {action}
-    </Card>
+    </TooltipProvider>
   );
 }
-
-EmptyState.propTypes = {
-  icon: PropTypes.node,
-  title: PropTypes.string.isRequired,
-  description: PropTypes.string.isRequired,
-  action: PropTypes.node,
-};
-
-/**
- * @param {Object} props
- * @param {number} props.page
- * @param {number} props.totalPages
- * @param {number} props.limit
- * @param {boolean} props.isFetching
- * @param {(page: number) => void} props.onPageChange
- * @param {(limit: number) => void} props.onLimitChange
- */
-function PaginationBar({ page, totalPages, limit, isFetching, onPageChange, onLimitChange }) {
-  const pageNumbers = useMemo(
-    () => Array.from({ length: Math.max(totalPages, 1) }, (_, index) => index + 1),
-    [totalPages],
-  );
-
-  return (
-    <div className="flex flex-col items-center justify-between gap-16 sm:flex-row">
-      <div className="flex items-center gap-8">
-        <Button
-          variant="secondary"
-          size="icon"
-          aria-label="Previous page"
-          onClick={() => onPageChange(page - 1)}
-          disabled={page <= 1 || isFetching}
-        >
-          <ChevronLeft className="h-16 w-16" />
-        </Button>
-        {pageNumbers.map((num) => (
-          <Button
-            key={num}
-            variant={num === page ? 'primary' : 'secondary'}
-            size="sm"
-            onClick={() => onPageChange(num)}
-            disabled={isFetching}
-          >
-            {num}
-          </Button>
-        ))}
-        <Button
-          variant="secondary"
-          size="icon"
-          aria-label="Next page"
-          onClick={() => onPageChange(page + 1)}
-          disabled={page >= totalPages || isFetching}
-        >
-          <ChevronRight className="h-16 w-16" />
-        </Button>
-      </div>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="secondary" size="sm">
-            {limit} / page
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Rows per page</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {PAGE_SIZE_OPTIONS.map((option) => (
-            <DropdownMenuCheckboxItem
-              key={option}
-              checked={option === limit}
-              onCheckedChange={() => onLimitChange(option)}
-            >
-              {option}
-            </DropdownMenuCheckboxItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
-}
-
-PaginationBar.propTypes = {
-  page: PropTypes.number.isRequired,
-  totalPages: PropTypes.number.isRequired,
-  limit: PropTypes.number.isRequired,
-  isFetching: PropTypes.bool,
-  onPageChange: PropTypes.func.isRequired,
-  onLimitChange: PropTypes.func.isRequired,
-};

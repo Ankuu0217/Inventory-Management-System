@@ -1,5 +1,4 @@
 import PropTypes from 'prop-types';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { STOCK_STATUS_STYLES } from '@/lib/constants';
 
@@ -16,10 +15,17 @@ export function StockStatusBadge({ status, className }) {
   const styles = STOCK_STATUS_STYLES[status] ?? STOCK_STATUS_STYLES['Out of Stock'];
 
   return (
-    <Badge className={cn(styles.bg, styles.text, className)}>
-      <span className={cn('h-8 w-8 shrink-0 rounded-full', styles.dot)} aria-hidden="true" />
+    <span
+      className={cn(
+        'inline-flex items-center gap-6 whitespace-nowrap rounded-full px-10 py-6 text-xs font-medium leading-none',
+        styles.bg,
+        styles.text,
+        className,
+      )}
+    >
+      <span className={cn('h-6 w-6 shrink-0 rounded-full', styles.dot)} aria-hidden="true" />
       {status}
-    </Badge>
+    </span>
   );
 }
 

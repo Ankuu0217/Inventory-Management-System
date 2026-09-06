@@ -14,7 +14,7 @@ describe('ProductFormDialog (create mode)', () => {
       <ProductFormDialog mode="create" open onOpenChange={onOpenChange} categories={[]} />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Create product' }));
+    await user.click(screen.getByRole('button', { name: 'Add product' }));
 
     expect(await screen.findByText('Name is required')).toBeInTheDocument();
     expect(screen.getByText('Category is required')).toBeInTheDocument();
@@ -34,7 +34,7 @@ describe('ProductFormDialog (create mode)', () => {
 
     await user.type(screen.getByLabelText('Product name'), 'Desk Lamp');
     await user.type(screen.getByLabelText('Category'), 'Electronics');
-    await user.click(screen.getByRole('button', { name: 'Create product' }));
+    await user.click(screen.getByRole('button', { name: 'Add product' }));
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     expect(await screen.findByText('Product created')).toBeInTheDocument();

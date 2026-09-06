@@ -30,7 +30,7 @@ describe('ProductsPage', () => {
 
     renderWithProviders(<ProductsPage />);
 
-    expect(await screen.findByText('No products yet')).toBeInTheDocument();
+    expect(await screen.findByText('Nothing in stock yet')).toBeInTheDocument();
   });
 
   test('renders an inline error state when the API call fails', async () => {

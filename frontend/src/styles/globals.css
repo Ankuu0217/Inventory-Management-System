@@ -5,21 +5,26 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@custom-variant dark (&:is(.dark *));
-
 /*
- * Satoshi is intentionally not loaded from Fontshare (one fewer external
- * dependency/failure point). font-satoshi falls back to Inter 500 in the
- * stack below -- pair it with `tracking-[-0.02em]` for the same display
- * effect, per the design spec's own documented substitution.
+ * The complete design vocabulary. Nothing outside this block is allowed in a
+ * component file -- no raw hex, no ad-hoc radius, no third shadow, no font
+ * size off this scale.
+ *
+ * Satoshi is deliberately not fetched from Fontshare (one fewer external
+ * dependency): `font-display` falls back to Inter 500 in the stack below and
+ * is paired with tight tracking for the same effect, per the design spec's
+ * own documented substitution. It is used in exactly one place -- the
+ * first-run empty-state headline at 36px.
  */
-
 @theme {
+  /* Surfaces */
   --color-canvas-white: #ffffff;
   --color-paper-mist: #f5f5f5;
   --color-ash: #e5e5e5;
   --color-smoke: #d4d4d4;
   --color-pebble: #c8c8c8;
+
+  /* Ink */
   --color-midnight-ink: #0a0a0a;
   --color-charcoal: #171717;
   --color-graphite: #262626;
@@ -27,42 +32,57 @@
   --color-steel: #525252;
   --color-fog: #737373;
   --color-silver: #a3a3a3;
+
+  /* Accent */
   --color-electric-blue: #2563eb;
   --color-deep-sapphire: #1e40af;
-  --color-soft-mint: #dcfce7;
-  --color-vivid-green: #16a34a;
-  --color-tangerine: #ea580c;
-  --color-lavender: #7c3aed;
   --color-sidebar-active: #dbeaff;
 
-  --font-satoshi: 'Satoshi', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  /* Status */
+  --color-soft-mint: #dcfce7;
+  --color-vivid-green: #16a34a;
+  --color-forest: #166534;
+  --color-tangerine: #ea580c;
+  --color-rust: #9a3412;
+  --color-lavender: #7c3aed;
+
+  /* Type */
+  --font-display: 'Satoshi', 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-inter: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-geist-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+  --text-micro: 11px;
+  --text-micro--line-height: 16px;
 
+  /* Spacing -- the utility number IS the pixel value (px-16 = 16px) */
+  --spacing-2: 2px;
   --spacing-4: 4px;
+  --spacing-6: 6px;
   --spacing-8: 8px;
+  --spacing-10: 10px;
   --spacing-12: 12px;
   --spacing-16: 16px;
   --spacing-20: 20px;
   --spacing-24: 24px;
   --spacing-32: 32px;
+  --spacing-36: 36px;
+  --spacing-40: 40px;
   --spacing-48: 48px;
+  --spacing-52: 52px;
   --spacing-64: 64px;
 
+  /* Radius -- these five, nothing else */
   --radius-inputs: 6px;
   --radius-buttons: 8px;
   --radius-cards: 12px;
   --radius-largecards: 16px;
   --radius-full: 9999px;
 
+  /* Elevation -- these two, nothing else. Borders do the rest. */
   --shadow-subtle: rgba(0, 0, 0, 0.05) 0px 1px 2px 0px;
   --shadow-ring: rgba(0, 0, 0, 0.1) 0px 0px 0px 4px;
 
-  /* Page-title scale (24-30px/600), per the typography scale in the spec */
-  --text-heading-sm: 1.5rem;
-  --text-heading-sm--line-height: 2rem;
-  --text-heading: 1.875rem;
-  --text-heading--line-height: 2.25rem;
+  /* Motion */
+  --ease-out-quick: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @layer base {
@@ -74,6 +94,73 @@
     background-color: var(--color-canvas-white);
     color: var(--color-charcoal);
     font-family: var(--font-inter);
+    font-size: 14px;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::placeholder {
+    color: var(--color-fog);
+  }
+
+  /*
+   * A flat rgba tint rather than color-mix(): the latter makes Lightning CSS
+   * emit an @supports fallback that broke the rules following it in this layer.
+   * This is the same #2563eb at 18%.
+   */
+  ::selection {
+    background-color: rgba(37, 99, 235, 0.18);
+    color: var(--color-charcoal);
+  }
+}
+
+/*
+ * One focus treatment everywhere: a 2px accent ring, offset so it reads as a
+ * ring rather than a border. Applied on :focus-visible only, so pointer users
+ * never see it but keyboard users always do.
+ *
+ * Deliberately left unlayered: unlayered author styles outrank every
+ * @layer, so this wins against Tailwind's preflight reset without needing
+ * !important or a specificity hack.
+ */
+:focus-visible {
+  outline: 2px solid var(--color-electric-blue);
+  outline-offset: 2px;
+}
+
+@layer utilities {
+  /* Thin, quiet scrollbars -- used on the sidebar and other inner panes. */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-smoke) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: var(--color-smoke);
+    border-radius: var(--radius-full);
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/*
+ * Respect the OS-level setting: everything becomes instant rather than
+ * merely faster, including the Radix enter/exit animations.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
